@@ -1,14 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"encoding/binary"
-	"github.com/spf13/cobra"
+	"fmt"
 	"log"
+	"os"
 	"os/user"
-	"syscall"
+	"path/filepath"
+	"runtime"
+
+	"github.com/shirou/gopsutil/mem"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -51,12 +53,11 @@ func main() {
 
 // getTotalRAM retrieves the total RAM size in kilobytes
 func getTotalRAM() (uint64, error) {
-	var sysinfo syscall.Sysinfo_t
-	err := syscall.Sysinfo(&sysinfo)
+	vmStat, err := mem.VirtualMemory()
 	if err != nil {
 		return 0, err
 	}
-	return sysinfo.Totalram * uint64(syscall.Getpagesize()) / 1024, nil
+	return vmStat.Total / 1024, nil
 }
 
 // saveAPIToken saves the API token in binary format to ~/.att/config/
@@ -117,4 +118,3 @@ func saveAPIToken(token string) {
 
 	fmt.Println("API token saved successfully.")
 }
-
