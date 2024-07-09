@@ -65,7 +65,7 @@ func saveAPIToken(token string) {
 		}
 	}
 
-	configFile := filepath.Join(configDir, "api-token")
+	configFile := filepath.Join(configDir, "data.bin")
 
 	// Write the token in binary format
 	file, err := os.Create(configFile)
@@ -74,7 +74,24 @@ func saveAPIToken(token string) {
 	}
 	defer file.Close()
 
-	err = binary.Write(file, binary.LittleEndian, []byte(token))
+	// XOR the token bytes with a simple key to obfuscate the token
+	tokenBytes := []byte(token)
+	key := byte(0xAA) // Simple XOR key
+	for i := range tokenBytes {
+		tokenBytes[i] ^= key
+	}
+
+	// Write the length of the token followed by the obfuscated token bytes
+	length := int32(len(tokenBytes))
+
+	// Write the length as a 4-byte integer in little-endian format
+	err = binary.Write(file, binary.LittleEndian, length)
+	if err != nil {
+		log.Fatalf("Unable to write length: %v", err)
+	}
+
+	// Write the actual obfuscated token bytes
+	_, err = file.Write(tokenBytes)
 	if err != nil {
 		log.Fatalf("Unable to write API token: %v", err)
 	}
