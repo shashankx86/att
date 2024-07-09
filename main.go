@@ -2,92 +2,82 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
-	"sync"
-	"time"
+	"path/filepath"
+	"encoding/binary"
+	"github.com/spf13/cobra"
+	"log"
+	"os/user"
 )
 
-// Define the path to the Unix domain socket (change as needed)
-const socketPath = "/tmp/timer.sock"
-
-// Timer struct to manage the timer state
-type Timer struct {
-	mu      sync.Mutex
-	running bool
-}
-
 func main() {
-	// Ensure the socket file does not already exist
-	if _, err := os.Stat(socketPath); err == nil {
-		os.Remove(socketPath)
+	var apiToken string
+
+	// Define the root command
+	var rootCmd = &cobra.Command{
+		Use:   "att",
+		Short: "Arcade Time Tracker",
 	}
 
-	// Create a Unix domain socket listener
-	listener, err := net.Listen("unix", socketPath)
+	// Define the configure command
+	var configureCmd = &cobra.Command{
+		Use:   "configure",
+		Short: "Configure the CLI tool",
+	}
+
+	// Define the api-token sub-command
+	var apiTokenCmd = &cobra.Command{
+		Use:   "api-token [token]",
+		Short: "Set the API token",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			apiToken = args[0]
+			saveAPIToken(apiToken)
+		},
+	}
+
+	// Add the sub-command to the configure command
+	configureCmd.AddCommand(apiTokenCmd)
+	// Add the configure command to the root command
+	rootCmd.AddCommand(configureCmd)
+
+	// Execute the root command
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+// saveAPIToken saves the API token in binary format to ~/.att/config/
+func saveAPIToken(token string) {
+	usr, err := user.Current()
 	if err != nil {
-		fmt.Printf("Failed to listen on socket: %v\n", err)
-		return
+		log.Fatalf("Unable to get the current user: %v", err)
 	}
-	defer listener.Close()
 
-	// Ensure the socket file is removed on exit
-	defer os.Remove(socketPath)
+	configDir := filepath.Join(usr.HomeDir, ".att", "config")
 
-	// Initialize the timer
-	timer := &Timer{}
-
-	fmt.Println("Daemon started and listening on", socketPath)
-
-	for {
-		// Accept new connections
-		conn, err := listener.Accept()
+	// Create the directory if it doesn't exist
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		err = os.MkdirAll(configDir, 0700)
 		if err != nil {
-			fmt.Printf("Failed to accept connection: %v\n", err)
-			continue
+			log.Fatalf("Unable to create config directory: %v", err)
 		}
-
-		// Handle the connection in a new goroutine
-		go handleConnection(conn, timer)
 	}
-}
 
-func handleConnection(conn net.Conn, timer *Timer) {
-	defer conn.Close()
+	configFile := filepath.Join(configDir, "api-token")
 
-	// Read the command from the client
-	buf := make([]byte, 256)
-	n, err := conn.Read(buf)
+	// Write the token in binary format
+	file, err := os.Create(configFile)
 	if err != nil {
-		fmt.Printf("Failed to read from connection: %v\n", err)
-		return
+		log.Fatalf("Unable to create config file: %v", err)
+	}
+	defer file.Close()
+
+	err = binary.Write(file, binary.LittleEndian, []byte(token))
+	if err != nil {
+		log.Fatalf("Unable to write API token: %v", err)
 	}
 
-	command := string(buf[:n])
-	switch command {
-	case "start":
-		startTimer(conn, timer)
-	default:
-		conn.Write([]byte("Unknown command\n"))
-	}
-}
-
-func startTimer(conn net.Conn, timer *Timer) {
-	timer.mu.Lock()
-	defer timer.mu.Unlock()
-
-	if timer.running {
-		conn.Write([]byte("Timer already running\n"))
-	} else {
-		timer.running = true
-		conn.Write([]byte("Timer started for 60 seconds\n"))
-
-		// Start the timer in a new goroutine
-		go func() {
-			time.Sleep(60 * time.Second)
-			timer.mu.Lock()
-			timer.running = false
-			timer.mu.Unlock()
-		}()
-	}
+	fmt.Println("API token saved successfully.")
 }
