@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os/user"
+	"syscall"
 )
 
 func main() {
@@ -48,6 +49,16 @@ func main() {
 	}
 }
 
+// getTotalRAM retrieves the total RAM size in kilobytes
+func getTotalRAM() (uint64, error) {
+	var sysinfo syscall.Sysinfo_t
+	err := syscall.Sysinfo(&sysinfo)
+	if err != nil {
+		return 0, err
+	}
+	return sysinfo.Totalram * uint64(syscall.Getpagesize()) / 1024, nil
+}
+
 // saveAPIToken saves the API token in binary format to ~/.att/config/
 func saveAPIToken(token string) {
 	usr, err := user.Current()
@@ -67,24 +78,32 @@ func saveAPIToken(token string) {
 
 	configFile := filepath.Join(configDir, "data.bin")
 
-	// Write the token in binary format
-	file, err := os.Create(configFile)
+	// Get total RAM size in kilobytes
+	totalRAM, err := getTotalRAM()
 	if err != nil {
-		log.Fatalf("Unable to create config file: %v", err)
+		log.Fatalf("Unable to get total RAM: %v", err)
 	}
-	defer file.Close()
 
-	// XOR the token bytes with a simple key to obfuscate the token
+	// Convert total RAM size to bytes
+	key := make([]byte, 8)
+	binary.LittleEndian.PutUint64(key, totalRAM)
+
+	// XOR the token bytes with the RAM size key to obfuscate the token
 	tokenBytes := []byte(token)
-	key := byte(0xAA) // Simple XOR key
 	for i := range tokenBytes {
-		tokenBytes[i] ^= key
+		tokenBytes[i] ^= key[i%len(key)]
 	}
 
 	// Write the length of the token followed by the obfuscated token bytes
 	length := int32(len(tokenBytes))
 
 	// Write the length as a 4-byte integer in little-endian format
+	file, err := os.Create(configFile)
+	if err != nil {
+		log.Fatalf("Unable to create config file: %v", err)
+	}
+	defer file.Close()
+
 	err = binary.Write(file, binary.LittleEndian, length)
 	if err != nil {
 		log.Fatalf("Unable to write length: %v", err)
@@ -98,3 +117,4 @@ func saveAPIToken(token string) {
 
 	fmt.Println("API token saved successfully.")
 }
+
