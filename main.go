@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"runtime"
+	// "runtime"
 
 	"github.com/shirou/gopsutil/mem"
 	"github.com/spf13/cobra"

@@ -4,12 +4,20 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
 
-// Define the path to the Unix domain socket (change as needed)
-const socketPath = "/tmp/timer.sock"
+var pipePath string
+
+func init() {
+	if runtime.GOOS == "windows" {
+		pipePath = `\\.\pipe\attd`
+	} else {
+		pipePath = "/tmp/attd"
+	}
+}
 
 // Timer struct to manage the timer state
 type Timer struct {
@@ -18,26 +26,30 @@ type Timer struct {
 }
 
 func main() {
-	// Ensure the socket file does not already exist
-	if _, err := os.Stat(socketPath); err == nil {
-		os.Remove(socketPath)
+	// Ensure the pipe file does not already exist (Unix-like systems)
+	if runtime.GOOS != "windows" {
+		if _, err := os.Stat(pipePath); err == nil {
+			os.Remove(pipePath)
+		}
 	}
 
-	// Create a Unix domain socket listener
-	listener, err := net.Listen("unix", socketPath)
+	// Create a Named Pipe listener
+	listener, err := net.Listen("unix", pipePath)
 	if err != nil {
-		fmt.Printf("Failed to listen on socket: %v\n", err)
+		fmt.Printf("Failed to listen on pipe: %v\n", err)
 		return
 	}
 	defer listener.Close()
 
-	// Ensure the socket file is removed on exit
-	defer os.Remove(socketPath)
+	// Ensure the pipe file is removed on exit (Unix-like systems)
+	if runtime.GOOS != "windows" {
+		defer os.Remove(pipePath)
+	}
 
 	// Initialize the timer
 	timer := &Timer{}
 
-	fmt.Println("Daemon started and listening on", socketPath)
+	fmt.Println("Daemon started and listening on", pipePath)
 
 	for {
 		// Accept new connections
