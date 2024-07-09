@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -26,6 +27,16 @@ type Timer struct {
 }
 
 func main() {
+	// Define the pipePath flag
+	var pipePathFlag string
+	flag.StringVar(&pipePathFlag, "pipe-path", pipePath, "set the path for the pipe")
+	flag.Parse()
+
+	// If the flag is provided, update the pipePath
+	if pipePathFlag != "" {
+		pipePath = pipePathFlag
+	}
+
 	// Ensure the pipe file does not already exist (Unix-like systems)
 	if runtime.GOOS != "windows" {
 		if _, err := os.Stat(pipePath); err == nil {
