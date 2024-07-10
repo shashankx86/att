@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 )
 
 var pipePath string
@@ -78,7 +79,7 @@ func handleConnection(conn net.Conn) {
 	fmt.Println("Handling new connection")
 
 	// Read the command from the client
-	buf := make([]byte, 256)
+	buf := make([]byte, 1024)
 	n, err := conn.Read(buf)
 	if err != nil {
 		fmt.Printf("Failed to read from connection: %v\n", err)
@@ -102,35 +103,28 @@ func handleConnection(conn net.Conn) {
 	}
 
 	// Perform the API POST request
-	err = postToAPI(payload.Work, payload.SlackID, payload.APIKey)
+	respStatus, respBody := postToAPI(payload.Work, payload.SlackID, payload.APIKey)
+	response := fmt.Sprintf("Response Status: %s\nResponse Body: %s\n", respStatus, respBody)
+	fmt.Println("API request made, sending response back to sender")
+	
+	_, err = conn.Write([]byte(response))
 	if err != nil {
-		fmt.Printf("Failed to perform API request: %v\n", err)
-		conn.Write([]byte(fmt.Sprintf("Failed to perform API request: %v\n", err)))
-	} else {
-		conn.Write([]byte("API request successful\n"))
+		fmt.Printf("Failed to write to connection: %v\n", err)
 	}
+	time.Sleep(1 * time.Second) // Adding delay to ensure response is sent before the client closes the connection
 }
 
-func postToAPI(work, slackID, apiKey string) error {
+func postToAPI(work, slackID, apiKey string) (string, string) {
 	url := fmt.Sprintf("https://hackhour.hackclub.com/api/start/%s", slackID)
 
 	// Prepare the JSON body
 	body := map[string]string{
 		"work": work,
 	}
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-
-	// Print the request body for debugging
-	fmt.Printf("Request Body: %s\n", string(jsonBody))
+	jsonBody, _ := json.Marshal(body)
 
 	// Create the HTTP request
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return err
-	}
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 
 	// Set the Authorization header
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
@@ -140,22 +134,13 @@ func postToAPI(work, slackID, apiKey string) error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return "Failed to perform API request", ""
 	}
 	defer resp.Body.Close()
 
-	// Read and print the response body for debugging
+	// Read the response body
 	respBody, _ := io.ReadAll(resp.Body)
-	fmt.Printf("Response Status: %s\n", resp.Status)
-	fmt.Printf("Response Body: %s\n", string(respBody))
 
-	// Check the response status
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusBadRequest && string(respBody) == `{"ok":false,"error":"You already have an active session"}` {
-			return fmt.Errorf("You already have an active session")
-		}
-		return fmt.Errorf("unexpected response status: %s", resp.Status)
-	}
-
-	return nil
+	// Return the response status and body
+	return resp.Status, string(respBody)
 }
