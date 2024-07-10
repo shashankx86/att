@@ -36,9 +36,7 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			apiToken = args[0]
-			configData := loadConfigData()
-			configData["api-token"] = apiToken
-			saveConfigData(configData)
+			updateConfigData("api-token", apiToken)
 		},
 	}
 
@@ -49,9 +47,7 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			slackID = args[0]
-			configData := loadConfigData()
-			configData["slack-id"] = slackID
-			saveConfigData(configData)
+			updateConfigData("slack-id", slackID)
 		},
 	}
 
@@ -65,7 +61,7 @@ func main() {
 		Short: "Manage sessions",
 	}
 
-	// Function to fetch and print data from the API
+	// Define reusable function to fetch and print data from the API
 	fetchAndPrintData := func(endpoint string) {
 		configData := loadConfigData()
 		apiToken = configData["api-token"]
@@ -79,17 +75,13 @@ func main() {
 		// Make the API request
 		url := fmt.Sprintf("https://hackhour.hackclub.com/api/%s/%s", endpoint, slackID)
 		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			log.Fatalf("Unable to create request: %v", err)
-		}
+		handleError("Unable to create request", err)
 
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
 
 		client := &http.Client{}
 		resp, err := client.Do(req)
-		if err != nil {
-			log.Fatalf("Unable to make request: %v", err)
-		}
+		handleError("Unable to make request", err)
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -97,15 +89,11 @@ func main() {
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatalf("Unable to read response body: %v", err)
-		}
+		handleError("Unable to read response body", err)
 
 		var result map[string]interface{}
 		err = json.Unmarshal(body, &result)
-		if err != nil {
-			log.Fatalf("Unable to unmarshal response: %v", err)
-		}
+		handleError("Unable to unmarshal response", err)
 
 		// Print the response data
 		if result["ok"].(bool) {
@@ -172,9 +160,7 @@ func main() {
 // loadConfigData loads the configuration data from ~/.att/config/data.json
 func loadConfigData() map[string]string {
 	usr, err := user.Current()
-	if err != nil {
-		log.Fatalf("Unable to get the current user: %v", err)
-	}
+	handleError("Unable to get the current user", err)
 
 	configFile := filepath.Join(usr.HomeDir, ".att", "config", "data.json")
 
@@ -184,15 +170,11 @@ func loadConfigData() map[string]string {
 	}
 
 	data, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		log.Fatalf("Unable to read config file: %v", err)
-	}
+	handleError("Unable to read config file", err)
 
 	var configData map[string]string
 	err = json.Unmarshal(data, &configData)
-	if err != nil {
-		log.Fatalf("Unable to unmarshal config data: %v", err)
-	}
+	handleError("Unable to unmarshal config data", err)
 
 	return configData
 }
@@ -200,32 +182,38 @@ func loadConfigData() map[string]string {
 // saveConfigData saves the configuration data in JSON format to ~/.att/config/data.json
 func saveConfigData(configData map[string]string) {
 	usr, err := user.Current()
-	if err != nil {
-		log.Fatalf("Unable to get the current user: %v", err)
-	}
+	handleError("Unable to get the current user", err)
 
 	configDir := filepath.Join(usr.HomeDir, ".att", "config")
 
 	// Create the directory if it doesn't exist
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		err = os.MkdirAll(configDir, 0700)
-		if err != nil {
-			log.Fatalf("Unable to create config directory: %v", err)
-		}
+		handleError("Unable to create config directory", err)
 	}
 
 	configFile := filepath.Join(configDir, "data.json")
 
 	data, err := json.Marshal(configData)
-	if err != nil {
-		log.Fatalf("Unable to marshal config data: %v", err)
-	}
+	handleError("Unable to marshal config data", err)
 
 	// Write the JSON data to the config file
 	err = ioutil.WriteFile(configFile, data, 0600)
-	if err != nil {
-		log.Fatalf("Unable to write config file: %v", err)
-	}
+	handleError("Unable to write config file", err)
 
 	fmt.Println("Configuration data saved successfully.")
+}
+
+// updateConfigData updates a specific key-value pair in the configuration data
+func updateConfigData(key, value string) {
+	configData := loadConfigData()
+	configData[key] = value
+	saveConfigData(configData)
+}
+
+// handleError is a reusable function to handle errors
+func handleError(message string, err error) {
+	if err != nil {
+		log.Fatalf("%s: %v", message, err)
+	}
 }
