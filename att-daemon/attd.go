@@ -37,9 +37,12 @@ func main() {
 		pipePath = pipePathFlag
 	}
 
+	fmt.Printf("Starting daemon with pipe path: %s\n", pipePath)
+
 	// Ensure the pipe file does not already exist (Unix-like systems)
 	if runtime.GOOS != "windows" {
 		if _, err := os.Stat(pipePath); err == nil {
+			fmt.Printf("Pipe file already exists, removing: %s\n", pipePath)
 			os.Remove(pipePath)
 		}
 	}
@@ -70,6 +73,8 @@ func main() {
 			continue
 		}
 
+		fmt.Println("New connection accepted")
+
 		// Handle the connection in a new goroutine
 		go handleConnection(conn, timer)
 	}
@@ -77,6 +82,7 @@ func main() {
 
 func handleConnection(conn net.Conn, timer *Timer) {
 	defer conn.Close()
+	fmt.Println("Handling new connection")
 
 	// Read the command from the client
 	buf := make([]byte, 256)
@@ -87,10 +93,12 @@ func handleConnection(conn net.Conn, timer *Timer) {
 	}
 
 	command := string(buf[:n])
+	fmt.Printf("Received command: %s\n", command)
 	switch command {
 	case "start":
 		startTimer(conn, timer)
 	default:
+		fmt.Println("Unknown command received")
 		conn.Write([]byte("Unknown command\n"))
 	}
 }
@@ -100,9 +108,11 @@ func startTimer(conn net.Conn, timer *Timer) {
 	defer timer.mu.Unlock()
 
 	if timer.running {
+		fmt.Println("Timer already running")
 		conn.Write([]byte("Timer already running\n"))
 	} else {
 		timer.running = true
+		fmt.Println("Timer started for 60 seconds")
 		conn.Write([]byte("Timer started for 60 seconds\n"))
 
 		// Start the timer in a new goroutine
@@ -111,6 +121,7 @@ func startTimer(conn net.Conn, timer *Timer) {
 			timer.mu.Lock()
 			timer.running = false
 			timer.mu.Unlock()
+			fmt.Println("Timer stopped after 60 seconds")
 		}()
 	}
 }
