@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/gen2brain/beeep"
 	"io"
 	"net"
 	"net/http"
@@ -111,6 +112,9 @@ func handleConnection(conn net.Conn) {
 	if err != nil {
 		fmt.Printf("Failed to write to connection: %v\n", err)
 	}
+
+	// Send a push notification
+	notify("attd", "Arcade Time Tracker", response)
 	time.Sleep(1 * time.Second) // Adding delay to ensure response is sent before the client closes the connection
 }
 
@@ -143,4 +147,11 @@ func postToAPI(work, slackID, apiKey string) (string, string) {
 
 	// Return the response status and body
 	return resp.Status, string(respBody)
+}
+
+func notify(appName, title, message string) {
+	err := beeep.Notify(title, message, "")
+	if err != nil {
+		fmt.Printf("Failed to send notification: %v\n", err)
+	}
 }
