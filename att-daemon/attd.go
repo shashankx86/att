@@ -88,12 +88,21 @@ func handleConnection(conn net.Conn) {
 	input := string(buf[:n])
 	fmt.Printf("Received input: %s\n", input)
 
-	// Split the input into work, SLACK_ID, and API_KEY
-	var work, slackID, apiKey string
-	fmt.Sscanf(input, "%s %s %s", &work, &slackID, &apiKey)
+	// Parse the input as JSON
+	var payload struct {
+		Work    string `json:"work"`
+		SlackID string `json:"slack_id"`
+		APIKey  string `json:"api_key"`
+	}
+	err = json.Unmarshal([]byte(input), &payload)
+	if err != nil {
+		fmt.Printf("Failed to parse input as JSON: %v\n", err)
+		conn.Write([]byte(fmt.Sprintf("Failed to parse input as JSON: %v\n", err)))
+		return
+	}
 
 	// Perform the API POST request
-	err = postToAPI(work, slackID, apiKey)
+	err = postToAPI(payload.Work, payload.SlackID, payload.APIKey)
 	if err != nil {
 		fmt.Printf("Failed to perform API request: %v\n", err)
 		conn.Write([]byte(fmt.Sprintf("Failed to perform API request: %v\n", err)))
