@@ -96,7 +96,7 @@ func handleConnection(conn net.Conn) {
 	err = postToAPI(work, slackID, apiKey)
 	if err != nil {
 		fmt.Printf("Failed to perform API request: %v\n", err)
-		conn.Write([]byte("Failed to perform API request\n"))
+		conn.Write([]byte(fmt.Sprintf("Failed to perform API request: %v\n", err)))
 	} else {
 		conn.Write([]byte("API request successful\n"))
 	}
@@ -142,6 +142,9 @@ func postToAPI(work, slackID, apiKey string) error {
 
 	// Check the response status
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest && string(respBody) == `{"ok":false,"error":"You already have an active session"}` {
+			return fmt.Errorf("You already have an active session")
+		}
 		return fmt.Errorf("unexpected response status: %s", resp.Status)
 	}
 
