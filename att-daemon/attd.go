@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -113,6 +114,9 @@ func postToAPI(work, slackID, apiKey string) error {
 		return err
 	}
 
+	// Print the request body for debugging
+	fmt.Printf("Request Body: %s\n", string(jsonBody))
+
 	// Create the HTTP request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 	if err != nil {
@@ -130,6 +134,11 @@ func postToAPI(work, slackID, apiKey string) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	// Read and print the response body for debugging
+	respBody, _ := io.ReadAll(resp.Body)
+	fmt.Printf("Response Status: %s\n", resp.Status)
+	fmt.Printf("Response Body: %s\n", string(respBody))
 
 	// Check the response status
 	if resp.StatusCode != http.StatusOK {
