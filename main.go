@@ -65,63 +65,98 @@ func main() {
 		Short: "Manage sessions",
 	}
 
+	// Function to fetch and print data from the API
+	fetchAndPrintData := func(endpoint string) {
+		configData := loadConfigData()
+		apiToken = configData["api-token"]
+		slackID = configData["slack-id"]
+
+		if apiToken == "" || slackID == "" {
+			fmt.Println("Please set your API token and Slack ID using the configure command.")
+			return
+		}
+
+		// Make the API request
+		url := fmt.Sprintf("https://hackhour.hackclub.com/api/%s/%s", endpoint, slackID)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Fatalf("Unable to create request: %v", err)
+		}
+
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatalf("Unable to make request: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			log.Fatalf("Error: received status code %d", resp.StatusCode)
+		}
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalf("Unable to read response body: %v", err)
+		}
+
+		var result map[string]interface{}
+		err = json.Unmarshal(body, &result)
+		if err != nil {
+			log.Fatalf("Unable to unmarshal response: %v", err)
+		}
+
+		// Print the response data
+		if result["ok"].(bool) {
+			data, _ := json.MarshalIndent(result["data"], "", "  ")
+			fmt.Println(string(data))
+		} else {
+			fmt.Println("Error: unable to fetch data")
+		}
+	}
+
 	// Define the list sub-command
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "List the latest session",
 		Run: func(cmd *cobra.Command, args []string) {
-			configData := loadConfigData()
-			apiToken = configData["api-token"]
-			slackID = configData["slack-id"]
-
-			if apiToken == "" || slackID == "" {
-				fmt.Println("Please set your API token and Slack ID using the configure command.")
-				return
-			}
-
-			// Make the API request
-			url := fmt.Sprintf("https://hackhour.hackclub.com/api/session/%s", slackID)
-			req, err := http.NewRequest("GET", url, nil)
-			if err != nil {
-				log.Fatalf("Unable to create request: %v", err)
-			}
-
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
-
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Fatalf("Unable to make request: %v", err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				log.Fatalf("Error: received status code %d", resp.StatusCode)
-			}
-
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				log.Fatalf("Unable to read response body: %v", err)
-			}
-
-			var result map[string]interface{}
-			err = json.Unmarshal(body, &result)
-			if err != nil {
-				log.Fatalf("Unable to unmarshal response: %v", err)
-			}
-
-			// Print the session data
-			if result["ok"].(bool) {
-				data, _ := json.MarshalIndent(result["data"], "", "  ")
-				fmt.Println(string(data))
-			} else {
-				fmt.Println("Error: unable to fetch session data")
-			}
+			fetchAndPrintData("session")
 		},
 	}
 
-	// Add the list sub-command to the session command
+	// Define the stats sub-command
+	var statsCmd = &cobra.Command{
+		Use:   "stats",
+		Short: "Get the stats for the user",
+		Run: func(cmd *cobra.Command, args []string) {
+			fetchAndPrintData("stats")
+		},
+	}
+
+	// Define the goals sub-command
+	var goalsCmd = &cobra.Command{
+		Use:   "goals",
+		Short: "Get the goals for the user",
+		Run: func(cmd *cobra.Command, args []string) {
+			fetchAndPrintData("goals")
+		},
+	}
+
+	// Define the history sub-command
+	var historyCmd = &cobra.Command{
+		Use:   "history",
+		Short: "Get the history for the user",
+		Run: func(cmd *cobra.Command, args []string) {
+			fetchAndPrintData("history")
+		},
+	}
+
+	// Add the sub-commands to the session command
 	sessionCmd.AddCommand(listCmd)
+	sessionCmd.AddCommand(statsCmd)
+	sessionCmd.AddCommand(goalsCmd)
+	sessionCmd.AddCommand(historyCmd)
 
 	// Add the configure and session commands to the root command
 	rootCmd.AddCommand(configureCmd)
