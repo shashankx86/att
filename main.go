@@ -1,15 +1,13 @@
 package main
 
 import (
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
-	// "runtime"
-
-	"github.com/shirou/gopsutil/mem"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +34,9 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			apiToken = args[0]
-			saveConfigData(apiToken, slackID)
+			configData := loadConfigData()
+			configData["api-token"] = apiToken
+			saveConfigData(configData)
 		},
 	}
 
@@ -47,7 +47,9 @@ func main() {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			slackID = args[0]
-			saveConfigData(apiToken, slackID)
+			configData := loadConfigData()
+			configData["slack-id"] = slackID
+			saveConfigData(configData)
 		},
 	}
 
@@ -65,17 +67,36 @@ func main() {
 	}
 }
 
-// getTotalRAM retrieves the total RAM size in kilobytes
-func getTotalRAM() (uint64, error) {
-	vmStat, err := mem.VirtualMemory()
+// loadConfigData loads the configuration data from ~/.att/config/data.json
+func loadConfigData() map[string]string {
+	usr, err := user.Current()
 	if err != nil {
-		return 0, err
+		log.Fatalf("Unable to get the current user: %v", err)
 	}
-	return vmStat.Total / 1024, nil
+
+	configFile := filepath.Join(usr.HomeDir, ".att", "config", "data.json")
+
+	// Create a default empty config if the file doesn't exist
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		return make(map[string]string)
+	}
+
+	data, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		log.Fatalf("Unable to read config file: %v", err)
+	}
+
+	var configData map[string]string
+	err = json.Unmarshal(data, &configData)
+	if err != nil {
+		log.Fatalf("Unable to unmarshal config data: %v", err)
+	}
+
+	return configData
 }
 
-// saveConfigData saves the API token and Slack ID in binary format to ~/.att/config/
-func saveConfigData(token string, slackID string) {
+// saveConfigData saves the configuration data in JSON format to ~/.att/config/data.json
+func saveConfigData(configData map[string]string) {
 	usr, err := user.Current()
 	if err != nil {
 		log.Fatalf("Unable to get the current user: %v", err)
@@ -91,61 +112,17 @@ func saveConfigData(token string, slackID string) {
 		}
 	}
 
-	configFile := filepath.Join(configDir, "data.bin")
+	configFile := filepath.Join(configDir, "data.json")
 
-	// Get total RAM size in kilobytes
-	totalRAM, err := getTotalRAM()
+	data, err := json.Marshal(configData)
 	if err != nil {
-		log.Fatalf("Unable to get total RAM: %v", err)
+		log.Fatalf("Unable to marshal config data: %v", err)
 	}
 
-	// Convert total RAM size to bytes
-	key := make([]byte, 8)
-	binary.LittleEndian.PutUint64(key, totalRAM)
-
-	// XOR the token bytes with the RAM size key to obfuscate the token
-	tokenBytes := []byte(token)
-	for i := range tokenBytes {
-		tokenBytes[i] ^= key[i%len(key)]
-	}
-
-	// XOR the Slack ID bytes with the RAM size key to obfuscate the Slack ID
-	slackIDBytes := []byte(slackID)
-	for i := range slackIDBytes {
-		slackIDBytes[i] ^= key[i%len(key)]
-	}
-
-	// Write the length of the token followed by the obfuscated token bytes and Slack ID bytes
-	file, err := os.Create(configFile)
+	// Write the JSON data to the config file
+	err = ioutil.WriteFile(configFile, data, 0600)
 	if err != nil {
-		log.Fatalf("Unable to create config file: %v", err)
-	}
-	defer file.Close()
-
-	// Write the length of the token as a 4-byte integer in little-endian format
-	tokenLength := int32(len(tokenBytes))
-	err = binary.Write(file, binary.LittleEndian, tokenLength)
-	if err != nil {
-		log.Fatalf("Unable to write token length: %v", err)
-	}
-
-	// Write the actual obfuscated token bytes
-	_, err = file.Write(tokenBytes)
-	if err != nil {
-		log.Fatalf("Unable to write API token: %v", err)
-	}
-
-	// Write the length of the Slack ID as a 4-byte integer in little-endian format
-	slackIDLength := int32(len(slackIDBytes))
-	err = binary.Write(file, binary.LittleEndian, slackIDLength)
-	if err != nil {
-		log.Fatalf("Unable to write Slack ID length: %v", err)
-	}
-
-	// Write the actual obfuscated Slack ID bytes
-	_, err = file.Write(slackIDBytes)
-	if err != nil {
-		log.Fatalf("Unable to write Slack ID: %v", err)
+		log.Fatalf("Unable to write config file: %v", err)
 	}
 
 	fmt.Println("Configuration data saved successfully.")
