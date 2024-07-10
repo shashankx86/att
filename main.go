@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -140,11 +141,28 @@ func main() {
 		},
 	}
 
+	// Define the start sub-command
+	var startCmd = &cobra.Command{
+		Use:   "start [work]",
+		Short: "Start a new session",
+		Run: func(cmd *cobra.Command, args []string) {
+			var work string
+			if len(args) > 0 {
+				work = args[0]
+			} else {
+				fmt.Print("Session Description: ")
+				fmt.Scanln(&work)
+			}
+			startNewSession(work)
+		},
+	}
+
 	// Add the sub-commands to the session command
 	sessionCmd.AddCommand(listCmd)
 	sessionCmd.AddCommand(statsCmd)
 	sessionCmd.AddCommand(goalsCmd)
 	sessionCmd.AddCommand(historyCmd)
+	sessionCmd.AddCommand(startCmd)
 
 	// Add the configure and session commands to the root command
 	rootCmd.AddCommand(configureCmd)
@@ -217,3 +235,56 @@ func handleError(message string, err error) {
 		log.Fatalf("%s: %v", message, err)
 	}
 }
+
+// startNewSession sends a POST request to start a new session
+func startNewSession(work string) {
+	configData := loadConfigData()
+	apiToken := configData["api-token"]
+	slackID := configData["slack-id"]
+
+	if apiToken == "" || slackID == "" {
+		fmt.Println("Please set your API token and Slack ID using the configure command.")
+		return
+	}
+
+	url := fmt.Sprintf("https://hackhour.hackclub.com/api/start/%s", slackID)
+	payload := map[string]string{"work": work}
+	payloadBytes, err := json.Marshal(payload)
+	handleError("Unable to marshal request payload", err)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
+	handleError("Unable to create request", err)
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	handleError("Unable to make request", err)
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	handleError("Unable to read response body", err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	handleError("Unable to unmarshal response", err)
+
+	// Check for active session
+	if resp.StatusCode != http.StatusOK {
+		if errorMessage, exists := result["error"].(string); exists && errorMessage == "You already have an active session" {
+			fmt.Println("You already have an active session")
+		} else {
+			fmt.Printf("Error: received status code %d with message: %s\n", resp.StatusCode, result["error"])
+		}
+		return
+	}
+
+	if ok, exists := result["ok"].(bool); exists && ok {
+		data, _ := json.MarshalIndent(result["data"], "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Println("Error:", result["error"])
+	}
+}
+
