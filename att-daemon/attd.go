@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
-	"sync"
-	"time"
 )
 
 var pipePath string
@@ -18,12 +19,6 @@ func init() {
 	} else {
 		pipePath = "/tmp/attd"
 	}
-}
-
-// Timer struct to manage the timer state
-type Timer struct {
-	mu      sync.Mutex
-	running bool
 }
 
 func main() {
@@ -60,9 +55,6 @@ func main() {
 		defer os.Remove(pipePath)
 	}
 
-	// Initialize the timer
-	timer := &Timer{}
-
 	fmt.Println("Daemon started and listening on", pipePath)
 
 	for {
@@ -76,11 +68,11 @@ func main() {
 		fmt.Println("New connection accepted")
 
 		// Handle the connection in a new goroutine
-		go handleConnection(conn, timer)
+		go handleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn, timer *Timer) {
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	fmt.Println("Handling new connection")
 
@@ -92,36 +84,57 @@ func handleConnection(conn net.Conn, timer *Timer) {
 		return
 	}
 
-	command := string(buf[:n])
-	fmt.Printf("Received command: %s\n", command)
-	switch command {
-	case "start":
-		startTimer(conn, timer)
-	default:
-		fmt.Println("Unknown command received")
-		conn.Write([]byte("Unknown command\n"))
+	input := string(buf[:n])
+	fmt.Printf("Received input: %s\n", input)
+
+	// Split the input into work, SLACK_ID, and API_KEY
+	var work, slackID, apiKey string
+	fmt.Sscanf(input, "%s %s %s", &work, &slackID, &apiKey)
+
+	// Perform the API POST request
+	err = postToAPI(work, slackID, apiKey)
+	if err != nil {
+		fmt.Printf("Failed to perform API request: %v\n", err)
+		conn.Write([]byte("Failed to perform API request\n"))
+	} else {
+		conn.Write([]byte("API request successful\n"))
 	}
 }
 
-func startTimer(conn net.Conn, timer *Timer) {
-	timer.mu.Lock()
-	defer timer.mu.Unlock()
+func postToAPI(work, slackID, apiKey string) error {
+	url := fmt.Sprintf("https://hackhour.hackclub.com/api/start/%s", slackID)
 
-	if timer.running {
-		fmt.Println("Timer already running")
-		conn.Write([]byte("Timer already running\n"))
-	} else {
-		timer.running = true
-		fmt.Println("Timer started for 60 seconds")
-		conn.Write([]byte("Timer started for 60 seconds\n"))
-
-		// Start the timer in a new goroutine
-		go func() {
-			time.Sleep(60 * time.Second)
-			timer.mu.Lock()
-			timer.running = false
-			timer.mu.Unlock()
-			fmt.Println("Timer stopped after 60 seconds")
-		}()
+	// Prepare the JSON body
+	body := map[string]string{
+		"work": work,
 	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	// Create the HTTP request
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return err
+	}
+
+	// Set the Authorization header
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	req.Header.Set("Content-Type", "application/json")
+
+	// Perform the HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check the response status
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected response status: %s", resp.Status)
+	}
+
+	return nil
 }
