@@ -157,12 +157,48 @@ func main() {
 		},
 	}
 
+	// Define the start sub-command
+	var startCmd = &cobra.Command{
+		Use:   "start [work]",
+		Short: "Start a new session",
+		Run: func(cmd *cobra.Command, args []string) {
+			var work string
+			if len(args) > 0 {
+				work = args[0]
+			} else {
+				fmt.Print("Session Description: ")
+				fmt.Scanln(&work)
+			}
+			startNewSession(work)
+		},
+	}
+
+	// Define the pause sub-command
+	var pauseCmd = &cobra.Command{
+		Use:   "pause",
+		Short: "Pause or resume the current session",
+		Run: func(cmd *cobra.Command, args []string) {
+			pauseOrResumeSession()
+		},
+	}
+
+	// Define the cancel sub-command
+	var cancelCmd = &cobra.Command{
+		Use:   "cancel",
+		Short: "Cancel the current session",
+		Run: func(cmd *cobra.Command, args []string) {
+			cancelSession()
+		},
+	}
+
 	// Add the sub-commands to the session command
 	sessionCmd.AddCommand(listCmd)
 	sessionCmd.AddCommand(statsCmd)
 	sessionCmd.AddCommand(goalsCmd)
 	sessionCmd.AddCommand(historyCmd)
 	sessionCmd.AddCommand(startCmd)
+	sessionCmd.AddCommand(pauseCmd)
+	sessionCmd.AddCommand(cancelCmd)
 
 	// Add the configure and session commands to the root command
 	rootCmd.AddCommand(configureCmd)
@@ -288,3 +324,88 @@ func startNewSession(work string) {
 	}
 }
 
+// pauseOrResumeSession sends a POST request to pause or resume the current session
+func pauseOrResumeSession() {
+	configData := loadConfigData()
+	apiToken := configData["api-token"]
+	slackID := configData["slack-id"]
+
+	if apiToken == "" || slackID == "" {
+		fmt.Println("Please set your API token and Slack ID using the configure command.")
+		return
+	}
+
+	url := fmt.Sprintf("https://hackhour.hackclub.com/api/pause/%s", slackID)
+	req, err := http.NewRequest("POST", url, nil)
+	handleError("Unable to create request", err)
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	handleError("Unable to make request", err)
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	handleError("Unable to read response body", err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	handleError("Unable to unmarshal response", err)
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Error: received status code %d with message: %s\n", resp.StatusCode, result["error"])
+		return
+	}
+
+	if ok, exists := result["ok"].(bool); exists && ok {
+		data, _ := json.MarshalIndent(result["data"], "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Println("Error:", result["error"])
+	}
+}
+
+// cancelSession sends a POST request to cancel the current session
+func cancelSession() {
+	configData := loadConfigData()
+	apiToken := configData["api-token"]
+	slackID := configData["slack-id"]
+
+	if apiToken == "" || slackID == "" {
+		fmt.Println("Please set your API token and Slack ID using the configure command.")
+		return
+	}
+
+	url := fmt.Sprintf("https://hackhour.hackclub.com/api/cancel/%s", slackID)
+	req, err := http.NewRequest("POST", url, nil)
+	handleError("Unable to create request", err)
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	handleError("Unable to make request", err)
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	handleError("Unable to read response body", err)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	handleError("Unable to unmarshal response", err)
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Error: received status code %d with message: %s\n", resp.StatusCode, result["error"])
+		return
+	}
+
+	if ok, exists := result["ok"].(bool); exists && ok {
+		data, _ := json.MarshalIndent(result["data"], "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Println("Error:", result["error"])
+	}
+}
