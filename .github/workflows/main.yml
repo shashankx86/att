@@ -22,11 +22,9 @@ jobs:
   xgo:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      -
-        name: Build
+      - name: Build
         uses: crazy-max/ghaction-xgo@v3
         with:
           xgo_version: latest
@@ -40,8 +38,14 @@ jobs:
           ldflags: -s -w
           buildmode: default
           trimpath: true
-      -
-        name: Create Release
+      - name: DEbug
+        run: |
+            ls
+            tree
+            find .
+            ls build
+      
+      - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -51,8 +55,7 @@ jobs:
           release_name: ${{ github.event.inputs.release_name }}
           draft: ${{ github.event.inputs.draft }}
           prerelease: ${{ github.event.inputs.prerelease }}
-      -
-        name: Upload Release Asset
+      - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
