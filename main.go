@@ -9,6 +9,8 @@ import (
     "att/handler"
 )
 
+VERSION = "0.0.1"
+
 func main() {
     var apiToken string
     var slackID string
@@ -149,11 +151,21 @@ func main() {
         },
     }
 
+	// CLI Version
+	var versionCmd = &cobra.Command{
+        Use:   "version",
+        Short: "Print CLI version and quit",
+        Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf(VERSION)
+        },
+    }
+
     // Add the configure, session, ping, and status commands to the root command
     rootCmd.AddCommand(configureCmd)
     rootCmd.AddCommand(sessionCmd)
     rootCmd.AddCommand(pingCmd)
     rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(versionCmd)
 
     // Execute the root command
     if err := rootCmd.Execute(); err != nil {
