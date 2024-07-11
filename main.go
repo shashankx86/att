@@ -3,15 +3,16 @@ package main
 import (
     "fmt"
     "os"
+    "path/filepath"
+    "strings"
 
     "github.com/spf13/cobra"
-	"strings"
     "att/handler"
 )
 
 var VERSION = "0.0.1"
 
-func PrintASCII() {
+func printASCIIArt() {
 	fmt.Println("      _    _   ")
 	fmt.Println(" ___ | |_ | |_ ")
 	fmt.Println("| .'||  _||  _|")
@@ -22,15 +23,18 @@ func main() {
     var apiToken string
     var slackID string
 
+    // Get the name of the executable
+	execName := filepath.Base(os.Args[0])
+
     // Define the root command
     var rootCmd = &cobra.Command{
-        Use:   "att",
+        Use:   execName,
         Short: "Arcade Time Tracker",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-            if cmd.Name() == "help" || len(os.Args) == 1 {
-                PrintASCII()
-            }
-        },
+		Run: func(cmd *cobra.Command, args []string) {
+			printASCIIArt()
+			// Display the help message if no arguments are provided
+			cmd.Help()
+		},
     }
 
     // Define the configure command
