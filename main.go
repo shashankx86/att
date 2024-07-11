@@ -5,6 +5,7 @@ import (
     "os"
 
     "github.com/spf13/cobra"
+	"strings"
     "att/handler"
 )
 
@@ -94,19 +95,14 @@ func main() {
 
     // Define the start sub-command
     var startCmd = &cobra.Command{
-        Use:   "start [work]",
-        Short: "Start a new session",
-        Run: func(cmd *cobra.Command, args []string) {
-            var work string
-            if len(args) > 0 {
-                work = args[0]
-            } else {
-                fmt.Print("Session Description: ")
-                fmt.Scanln(&work)
-            }
-            handler.StartNewSession(work)
-        },
-    }
+		Use:   "start [work...]",
+		Short: "Start a new session",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			work := strings.Join(args, " ")
+			handler.StartNewSession(work)
+		},
+	}
 
     // Define the pause sub-command
     var pauseCmd = &cobra.Command{
