@@ -75,14 +75,10 @@ func main() {
 
 		// Make the API request
 		url := fmt.Sprintf("https://hackhour.hackclub.com/api/%s/%s", endpoint, slackID)
-		req, err := http.NewRequest("GET", url, nil)
-		handleError("Unable to create request", err)
-
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		handleError("Unable to make request", err)
+		resp, err := makeAPIRequest("GET", url, nil, apiToken)
+		if err != nil {
+			log.Fatalf("Error: %v", err)
+		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
@@ -138,22 +134,6 @@ func main() {
 		Short: "Get the history for the user",
 		Run: func(cmd *cobra.Command, args []string) {
 			fetchAndPrintData("history")
-		},
-	}
-
-	// Define the start sub-command
-	var startCmd = &cobra.Command{
-		Use:   "start [work]",
-		Short: "Start a new session",
-		Run: func(cmd *cobra.Command, args []string) {
-			var work string
-			if len(args) > 0 {
-				work = args[0]
-			} else {
-				fmt.Print("Session Description: ")
-				fmt.Scanln(&work)
-			}
-			startNewSession(work)
 		},
 	}
 
@@ -272,6 +252,25 @@ func handleError(message string, err error) {
 	}
 }
 
+// makeAPIRequest is a reusable function to make API requests
+func makeAPIRequest(method, url string, payload []byte, apiToken string) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, fmt.Errorf("Unable to create request: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to make request: %v", err)
+	}
+
+	return resp, nil
+}
+
 // startNewSession sends a POST request to start a new session
 func startNewSession(work string) {
 	configData := loadConfigData()
@@ -288,14 +287,7 @@ func startNewSession(work string) {
 	payloadBytes, err := json.Marshal(payload)
 	handleError("Unable to marshal request payload", err)
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
-	handleError("Unable to create request", err)
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeAPIRequest("POST", url, payloadBytes, apiToken)
 	handleError("Unable to make request", err)
 	defer resp.Body.Close()
 
@@ -336,14 +328,7 @@ func pauseOrResumeSession() {
 	}
 
 	url := fmt.Sprintf("https://hackhour.hackclub.com/api/pause/%s", slackID)
-	req, err := http.NewRequest("POST", url, nil)
-	handleError("Unable to create request", err)
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeAPIRequest("POST", url, nil, apiToken)
 	handleError("Unable to make request", err)
 	defer resp.Body.Close()
 
@@ -379,14 +364,7 @@ func cancelSession() {
 	}
 
 	url := fmt.Sprintf("https://hackhour.hackclub.com/api/cancel/%s", slackID)
-	req, err := http.NewRequest("POST", url, nil)
-	handleError("Unable to create request", err)
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiToken))
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := makeAPIRequest("POST", url, nil, apiToken)
 	handleError("Unable to make request", err)
 	defer resp.Body.Close()
 
