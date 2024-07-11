@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const BASE_URL = "https://hackhour.hackclub.com"
+
 func main() {
 	var apiToken string
 	var slackID string
@@ -74,7 +76,7 @@ func main() {
 		}
 
 		// Make the API request
-		url := fmt.Sprintf("https://hackhour.hackclub.com/api/%s/%s", endpoint, slackID)
+		url := fmt.Sprintf("%s/api/%s/%s", BASE_URL, endpoint, slackID)
 		resp, err := makeAPIRequest("GET", url, nil, apiToken)
 		if err != nil {
 			log.Fatalf("Error: %v", err)
@@ -282,7 +284,7 @@ func startNewSession(work string) {
 		return
 	}
 
-	url := fmt.Sprintf("https://hackhour.hackclub.com/api/start/%s", slackID)
+	url := fmt.Sprintf("%s/api/start/%s", BASE_URL, slackID)
 	payload := map[string]string{"work": work}
 	payloadBytes, err := json.Marshal(payload)
 	handleError("Unable to marshal request payload", err)
@@ -327,7 +329,7 @@ func pauseOrResumeSession() {
 		return
 	}
 
-	url := fmt.Sprintf("https://hackhour.hackclub.com/api/pause/%s", slackID)
+	url := fmt.Sprintf("%s/api/pause/%s", BASE_URL, slackID)
 	resp, err := makeAPIRequest("POST", url, nil, apiToken)
 	handleError("Unable to make request", err)
 	defer resp.Body.Close()
@@ -363,7 +365,7 @@ func cancelSession() {
 		return
 	}
 
-	url := fmt.Sprintf("https://hackhour.hackclub.com/api/cancel/%s", slackID)
+	url := fmt.Sprintf("%s/api/cancel/%s", BASE_URL, slackID)
 	resp, err := makeAPIRequest("POST", url, nil, apiToken)
 	handleError("Unable to make request", err)
 	defer resp.Body.Close()
