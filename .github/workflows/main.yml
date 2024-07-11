@@ -1,0 +1,62 @@
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release'
+        required: true
+      release_name:
+        description: 'Release name'
+        required: true
+      draft:
+        description: 'Is this a draft release?'
+        required: false
+        default: 'true'
+      prerelease:
+        description: 'Is this a prerelease?'
+        required: false
+        default: 'true'
+
+jobs:
+  xgo:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+      -
+        name: Build
+        uses: crazy-max/ghaction-xgo@v3
+        with:
+          xgo_version: latest
+          go_version: 1.21
+          dest: build
+          prefix: att
+          targets: windows/386,windows/amd64,windows/arm,windows/arm64,linux/386,linux/amd64,linux/arm,linux/arm64,linux/riscv64,darwin/amd64,darwin/arm64
+          v: true
+          x: false
+          race: false
+          ldflags: -s -w
+          buildmode: default
+          trimpath: true
+      -
+        name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.tag_name }}
+          release_name: ${{ github.event.inputs.release_name }}
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+      -
+        name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/*
+          asset_content_type: application/octet-stream
