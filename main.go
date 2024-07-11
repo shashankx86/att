@@ -9,7 +9,14 @@ import (
     "att/handler"
 )
 
-VERSION = "0.0.1"
+var VERSION = "0.0.1"
+
+func PrintASCII() {
+	fmt.Println("      _    _   ")
+	fmt.Println(" ___ | |_ | |_ ")
+	fmt.Println("| .'||  _||  _|")
+  	fmt.Println("|__,||_|  |_|  \n")
+}
 
 func main() {
     var apiToken string
@@ -19,6 +26,11 @@ func main() {
     var rootCmd = &cobra.Command{
         Use:   "att",
         Short: "Arcade Time Tracker",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+            if cmd.Name() == "help" || len(os.Args) == 1 {
+                PrintASCII()
+            }
+        },
     }
 
     // Define the configure command
