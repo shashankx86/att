@@ -21,6 +21,51 @@ func PrettyPrintJSON(data map[string]interface{}) {
     fmt.Println(sb.String())
 }
 
+// PingServer pings the server and prints the response
+func PingServer() {
+    url := fmt.Sprintf("%s/ping", BASE_URL)
+    resp, err := utils.MakeAPIRequest("GET", url, nil, "")
+    if err != nil {
+        log.Fatalf("Error: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        log.Fatalf("Error: received status code %d", resp.StatusCode)
+    }
+
+    body, err := ioutil.ReadAll(resp.Body)
+    utils.HandleError("Unable to read response body", err)
+
+    fmt.Println(string(body))
+}
+
+// FetchAndPrintStatus fetches and prints the status of hack hour
+func FetchAndPrintStatus() {
+    url := fmt.Sprintf("%s/status", BASE_URL)
+    resp, err := utils.MakeAPIRequest("GET", url, nil, "")
+    if err != nil {
+        log.Fatalf("Error: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        log.Fatalf("Error: received status code %d", resp.StatusCode)
+    }
+
+    body, err := ioutil.ReadAll(resp.Body)
+    utils.HandleError("Unable to read response body", err)
+
+    var status map[string]interface{}
+    err = json.Unmarshal(body, &status)
+    utils.HandleError("Unable to unmarshal response", err)
+
+    fmt.Println("Status of hack hour (heidi):")
+    fmt.Printf("\"activeSessions\": %v\n", status["activeSessions"])
+    fmt.Printf("\"airtableConnected\": %v\n", status["airtableConnected"])
+    fmt.Printf("\"slackConnected\": %v\n", status["slackConnected"])
+}
+
 // FetchAndPrintData fetches and prints data from the API
 func FetchAndPrintData(endpoint string) {
     configData := utils.LoadConfigData()
