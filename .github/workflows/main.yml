@@ -9,10 +9,10 @@ on:
       release_name:
         description: 'Release name'
         required: true
-      draft:
-        description: 'Is this a draft release?'
-        required: false
-        default: 'true'
+      # draft:
+      #   description: 'Is this a draft release?'
+      #   required: false
+      #   default: 'true'
       prerelease:
         description: 'Is this a prerelease?'
         required: false
@@ -46,15 +46,14 @@ jobs:
             ls build
       
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: marvinpinto/action-automatic-releases@latest
         with:
-          tag_name: ${{ github.event.inputs.tag_name }}
-          release_name: ${{ github.event.inputs.release_name }}
-          draft: ${{ github.event.inputs.draft }}
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: ${{ github.event.inputs.tag_name }}
           prerelease: ${{ github.event.inputs.prerelease }}
+          title: ${{ github.event.inputs.release_name }}
+          files: build/*
+
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
