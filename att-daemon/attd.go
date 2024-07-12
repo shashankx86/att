@@ -15,6 +15,7 @@ import (
 )
 
 var pipePath string
+const iconPath = "./assets/ico.png"
 
 func init() {
 	if runtime.GOOS == "windows" {
@@ -42,7 +43,7 @@ func main() {
 	if runtime.GOOS != "windows" {
 		if _, err := os.Stat(pipePath); err == nil {
 			fmt.Printf("Pipe file already exists, removing: %s\n", pipePath)
-			notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Pipe file already exists, removing: %s", pipePath))
+			notify("attd", "Daemon Status", fmt.Sprintf("Pipe file already exists, removing: %s", pipePath))
 			os.Remove(pipePath)
 		}
 	}
@@ -51,7 +52,7 @@ func main() {
 	listener, err := net.Listen("unix", pipePath)
 	if err != nil {
 		fmt.Printf("Failed to listen on pipe: %v\n", err)
-		notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Failed to listen on pipe: %v", err))
+		notify("attd", "Daemon Status", fmt.Sprintf("Failed to listen on pipe: %v", err))
 		return
 	}
 	defer listener.Close()
@@ -62,7 +63,7 @@ func main() {
 	}
 
 	fmt.Println("Daemon started and listening on", pipePath)
-	notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Daemon started and listening on %s", pipePath))
+	notify("attd", "Daemon Status", fmt.Sprintf("Daemon started and listening on %s", pipePath))
 
 	for {
 		// Accept new connections
@@ -176,7 +177,7 @@ func handleNotification(respBody string) {
 }
 
 func notify(appName, title, message string) {
-	err := beeep.Notify(title, message, "")
+	err := beeep.Notify(title, message, iconPath)
 	if err != nil {
 		fmt.Printf("Failed to send notification: %v\n", err)
 	}
