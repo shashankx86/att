@@ -37,13 +37,13 @@ func main() {
 	}
 
 	fmt.Printf("Starting daemon with pipe path: %s\n", pipePath)
-	notify("attd", "Daemon Status", fmt.Sprintf("Starting daemon with pipe path: %s", pipePath))
+	notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Starting daemon with pipe path: %s", pipePath))
 
 	// Ensure the pipe file does not already exist (Unix-like systems)
 	if runtime.GOOS != "windows" {
 		if _, err := os.Stat(pipePath); err == nil {
 			fmt.Printf("Pipe file already exists, removing: %s\n", pipePath)
-			notify("attd", "Daemon Status", fmt.Sprintf("Pipe file already exists, removing: %s", pipePath))
+			notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Pipe file already exists, removing: %s", pipePath))
 			os.Remove(pipePath)
 		}
 	}
@@ -52,7 +52,7 @@ func main() {
 	listener, err := net.Listen("unix", pipePath)
 	if err != nil {
 		fmt.Printf("Failed to listen on pipe: %v\n", err)
-		notify("attd", "Daemon Status", fmt.Sprintf("Failed to listen on pipe: %v", err))
+		notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Failed to listen on pipe: %v", err))
 		return
 	}
 	defer listener.Close()
@@ -63,7 +63,7 @@ func main() {
 	}
 
 	fmt.Println("Daemon started and listening on", pipePath)
-	notify("attd", "Daemon Status", fmt.Sprintf("Daemon started and listening on %s", pipePath))
+	notify("attd", "Arcade Time Tracker Daemon", fmt.Sprintf("Daemon started and listening on %s", pipePath))
 
 	for {
 		// Accept new connections
@@ -119,7 +119,7 @@ func handleConnection(conn net.Conn) {
 	}
 
 	// Send a push notification based on the response
-	handleNotification(respBody)
+	handleNotification(respBody, payload.Work)
 	time.Sleep(1 * time.Second) // Adding delay to ensure response is sent before the client closes the connection
 }
 
@@ -154,7 +154,7 @@ func postToAPI(work, slackID, apiKey string) (string, string) {
 	return resp.Status, string(respBody)
 }
 
-func handleNotification(respBody string) {
+func handleNotification(respBody string, work string) {
 	var response map[string]interface{}
 	err := json.Unmarshal([]byte(respBody), &response)
 	if err != nil {
@@ -162,7 +162,11 @@ func handleNotification(respBody string) {
 		return
 	}
 
-	if response["ok"] == false {
+	if response["ok"].(bool) {
+		data := response["data"].(map[string]interface{})
+		message := fmt.Sprintf("Session started: %s", work)
+		notify("attd", "Arcade Time Tracker", message)
+	} else {
 		switch response["error"] {
 		case "Unauthorized":
 			notify("attd", "Arcade Time Tracker", "Unauthorized: Invalid API Key or Slack ID")
@@ -171,8 +175,6 @@ func handleNotification(respBody string) {
 		default:
 			notify("attd", "Arcade Time Tracker", respBody)
 		}
-	} else {
-		notify("attd", "Arcade Time Tracker", respBody)
 	}
 }
 
