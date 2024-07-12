@@ -164,6 +164,14 @@ func handleNotification(respBody string, work string) {
 
 	if response["ok"].(bool) {
 		data := response["data"].(map[string]interface{})
+		endTime, err := time.Parse(time.RFC3339, data["endTime"].(string))
+		if err != nil {
+			fmt.Printf("Failed to parse endTime: %v\n", err)
+			return
+		}
+
+		go setupNotifications(endTime)
+
 		message := fmt.Sprintf("Session started: %s", work)
 		notify("attd", "Arcade Time Tracker", message)
 	} else {
@@ -175,6 +183,32 @@ func handleNotification(respBody string, work string) {
 		default:
 			notify("attd", "Arcade Time Tracker", respBody)
 		}
+	}
+}
+
+func setupNotifications(endTime time.Time) {
+	currentTime := time.Now()
+	duration := endTime.Sub(currentTime)
+
+	if duration <= 0 {
+		return
+	}
+
+	timeRemain := int(duration.Minutes())
+
+	if timeRemain > 10 {
+		time.Sleep(20 * time.Minute)
+		notify("attd", "Arcade Time Tracker", fmt.Sprintf("You have %d minutes left!", timeRemain-20))
+	}
+
+	if timeRemain > 10 {
+		time.Sleep((time.Duration(timeRemain-30) * time.Minute))
+		notify("attd", "Arcade Time Tracker", "Just 10 minutes left!")
+	}
+
+	if timeRemain > 5 {
+		time.Sleep(5 * time.Minute)
+		notify("attd", "Arcade Time Tracker", "The last 5 minutes!")
 	}
 }
 
