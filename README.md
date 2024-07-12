@@ -31,7 +31,14 @@ Arcade Time Tracker (att) is a command-line tool designed to help you manage and
 
 ## Installation
 
-To install the CLI tool, follow these steps:
+#### Linux/OSX
+```
+curl -s https://github.com/shashankx86/att/raw/main/install.sh | bash
+```
+
+### Manual Build & Install
+
+To manually build and install the CLI tool, follow these steps:
 
 1. Clone the repository:
    ```bash
@@ -50,7 +57,7 @@ To install the CLI tool, follow these steps:
 
 4. Move the binary to a directory in your PATH:
    ```bash
-   mv att /usr/local/bin/
+   sudo mv att /usr/local/bin/
    ```
 
 ## Usage
