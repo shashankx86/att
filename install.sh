@@ -26,6 +26,36 @@ get_platform_arch() {
         aarch64)
             arch="arm64"
             ;;
+        armv5*)
+            arch="arm-5"
+            ;;
+        armv6*)
+            arch="arm-6"
+            ;;
+        armv7*)
+            arch="arm-7"
+            ;;
+        mips)
+            arch="mips"
+            ;;
+        mips64)
+            arch="mips64"
+            ;;
+        mips64el)
+            arch="mips64le"
+            ;;
+        mipsel)
+            arch="mipsle"
+            ;;
+        ppc64le)
+            arch="ppc64le"
+            ;;
+        riscv64)
+            arch="riscv64"
+            ;;
+        s390x)
+            arch="s390x"
+            ;;
         *)
             echo "Unsupported architecture: $arch"
             exit 1
@@ -60,17 +90,16 @@ if [[ -z "$ASSET_URL" ]]; then
     exit 1
 fi
 
-# Download the asset
-DOWNLOAD_DIR="/usr/local/bin"
-DOWNLOAD_PATH="$DOWNLOAD_DIR/att"
-
-# Create the directory if it doesn't exist
-mkdir -p "$DOWNLOAD_DIR"
-
-download_file "$ASSET_URL" "$DOWNLOAD_PATH"
+# Download the asset to /tmp
+TMP_DOWNLOAD_PATH="/tmp/att"
+download_file "$ASSET_URL" "$TMP_DOWNLOAD_PATH"
 
 # Make the file executable
-chmod +x "$DOWNLOAD_PATH"
+chmod +x "$TMP_DOWNLOAD_PATH"
+
+# Move the file to /usr/local/bin
+DOWNLOAD_DIR="/usr/local/bin"
+sudo mv "$TMP_DOWNLOAD_PATH" "$DOWNLOAD_DIR/att"
 
 echo "att installed successfully in $DOWNLOAD_DIR"
 echo "You can run it using the command: att"
