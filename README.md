@@ -11,6 +11,7 @@ Arcade Time Tracker (att) is a command-line tool designed to help you manage and
 
 ## Table of Contents
 
+0. [Supported Platforms](#supported-platforms)
 1. [Installation](#installation)
 2. [Usage](#usage)
     - [General Usage](#general-usage)
@@ -29,11 +30,39 @@ Arcade Time Tracker (att) is a command-line tool designed to help you manage and
         - [ping](#ping)
         - [status](#status)
 
+## Supported Platforms
+
+#### Linux 
+- 386
+- amd64
+- arm-5
+- arm-6
+- arm-7
+- arm64
+- mips
+- mips64
+- mips64le
+- mipsle
+- ppc64le
+- riscv64
+- s390x 
+#### Windows
+- 386
+- amd64
+#### OSX
+- arm64
+- amd64
+
 ## Installation
 
 #### Linux/OSX
 ```
 curl -s https://github.com/shashankx86/att/raw/main/install.sh | bash
+```
+
+#### Windows
+```
+powershell -c "iwr https://raw.githubusercontent.com/shashankx86/att/main/install.ps1 -o install.ps1; .\install.ps1"
 ```
 
 ### Manual Build & Install
