@@ -25,16 +25,16 @@ func main() {
 			"command": "start",
 			"data": map[string]interface{}{
 				"work":     "work on att",
-				"slack_id": "XXXXXXXXXX",
-				"api_key":  "xxxxxxxx-xxxx-xxx-xxxxxxxxxxxxx",
+				"slack_id": "xxxxxxxxx",
+				"api_key":  "xxxxxxxxx",
 			},
 		}
 	} else if command == "track" {
 		payload = map[string]interface{}{
 			"command": "track",
 			"data": map[string]interface{}{
-				"slack_id": "U05A3TSL7UY",
-				"api_key":  "xxxxxxxx-xxxx-xxx-xxxxxxxxxxxxx",
+				"slack_id": "xxxxxxxxx",
+				"api_key":  "xxxxxxxxxxx",
 			},
 		}
 	} else {
