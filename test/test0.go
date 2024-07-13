@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	// "os"
 )
 
 func main() {
@@ -14,12 +13,35 @@ func main() {
 	flag.StringVar(&pipePath, "pipe-path", "/tmp/attd", "set the path for the pipe")
 	flag.Parse()
 
-	// Prepare the JSON payload
-	payload := map[string]string{
-		"work":    "work on att",
-		"slack_id": "U05XXXXXXXX",
-		"api_key":  "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxx",
+	// Define which command to test: "start" or "track"
+	var command string
+	flag.StringVar(&command, "command", "track", "specify the command to send (start or track)")
+	flag.Parse()
+
+	// Prepare the data payload based on the command
+	var payload map[string]interface{}
+	if command == "start" {
+		payload = map[string]interface{}{
+			"command": "start",
+			"data": map[string]interface{}{
+				"work":     "work on att",
+				"slack_id": "XXXXXXXXXX",
+				"api_key":  "xxxxxxxx-xxxx-xxx-xxxxxxxxxxxxx",
+			},
+		}
+	} else if command == "track" {
+		payload = map[string]interface{}{
+			"command": "track",
+			"data": map[string]interface{}{
+				"slack_id": "U05A3TSL7UY",
+				"api_key":  "xxxxxxxx-xxxx-xxx-xxxxxxxxxxxxx",
+			},
+		}
+	} else {
+		fmt.Printf("Invalid command specified: %s\n", command)
+		return
 	}
+
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		fmt.Printf("Failed to marshal JSON: %v\n", err)

@@ -96,31 +96,133 @@ func handleConnection(conn net.Conn) {
 	fmt.Printf("Received input: %s\n", input)
 
 	// Parse the input as JSON
-	var payload struct {
-		Work    string `json:"work"`
-		SlackID string `json:"slack_id"`
-		APIKey  string `json:"api_key"`
+	var command struct {
+		Command string                 `json:"command"`
+		Data    map[string]interface{} `json:"data"`
 	}
-	err = json.Unmarshal([]byte(input), &payload)
+	err = json.Unmarshal([]byte(input), &command)
 	if err != nil {
 		fmt.Printf("Failed to parse input as JSON: %v\n", err)
 		conn.Write([]byte(fmt.Sprintf("Failed to parse input as JSON: %v\n", err)))
 		return
 	}
 
-	// Perform the API POST request
-	respStatus, respBody := postToAPI(payload.Work, payload.SlackID, payload.APIKey)
+	// Route based on the command
+	switch command.Command {
+	case "start":
+		handleStartCommand(conn, command.Data)
+	case "track":
+		handleTrackCommand(conn, command.Data)
+	default:
+		conn.Write([]byte("Unknown command\n"))
+	}
+}
+
+func handleStartCommand(conn net.Conn, data map[string]interface{}) {
+	work, ok := data["work"].(string)
+	if !ok {
+		conn.Write([]byte("Invalid or missing 'work' value\n"))
+		return
+	}
+	slackID, ok := data["slack_id"].(string)
+	if !ok {
+		conn.Write([]byte("Invalid or missing 'slack_id' value\n"))
+		return
+	}
+	apiKey, ok := data["api_key"].(string)
+	if !ok {
+		conn.Write([]byte("Invalid or missing 'api_key' value\n"))
+		return
+	}
+
+	// Perform the API POST request to start a new session
+	respStatus, respBody := postToAPI(work, slackID, apiKey)
 	response := fmt.Sprintf("Response Status: %s\nResponse Body: %s\n", respStatus, respBody)
 	fmt.Println("API request made, sending response back to sender")
-	
-	_, err = conn.Write([]byte(response))
+
+	_, err := conn.Write([]byte(response))
 	if err != nil {
 		fmt.Printf("Failed to write to connection: %v\n", err)
 	}
 
 	// Send a push notification based on the response
-	handleNotification(respBody, payload.Work)
+	handleNotification(respBody, work, time.Time{})
 	time.Sleep(1 * time.Second) // Adding delay to ensure response is sent before the client closes the connection
+}
+
+func handleTrackCommand(conn net.Conn, data map[string]interface{}) {
+	slackID, ok := data["slack_id"].(string)
+	if !ok {
+		conn.Write([]byte("Invalid or missing 'slack_id' value\n"))
+		return
+	}
+	apiKey, ok := data["api_key"].(string)
+	if !ok {
+		conn.Write([]byte("Invalid or missing 'api_key' value\n"))
+		return
+	}
+
+	// Fetch the latest session information
+	endTime, err := getSessionEndTime(slackID, apiKey)
+	if err != nil {
+		fmt.Printf("Failed to get session end time: %v\n", err)
+		conn.Write([]byte(fmt.Sprintf("Failed to get session end time: %v\n", err)))
+		return
+	}
+
+	trackTime := time.Now().Format(time.RFC3339)
+	fmt.Printf("Tracking started at: %s\n", trackTime)
+
+	// Start the tracking system with notifications
+	go setupNotifications(endTime)
+
+	conn.Write([]byte(fmt.Sprintf("Tracking started with end time: %s\n", endTime)))
+}
+
+func getSessionEndTime(slackID, apiKey string) (time.Time, error) {
+	url := fmt.Sprintf("https://hackhour.hackclub.com/api/session/%s", slackID)
+
+	// Create the HTTP request
+	req, _ := http.NewRequest("GET", url, nil)
+
+	// Set the Authorization header
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+
+	// Perform the HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to perform API request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Parse the response
+	var response struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			EndTime string `json:"endTime"`
+		} `json:"data"`
+	}
+	err = json.Unmarshal(respBody, &response)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Check if the response is OK
+	if !response.OK {
+		return time.Time{}, fmt.Errorf("API response not OK")
+	}
+
+	// Parse the endTime
+	endTime, err := time.Parse(time.RFC3339, response.Data.EndTime)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse endTime: %w", err)
+	}
+
+	return endTime, nil
 }
 
 func postToAPI(work, slackID, apiKey string) (string, string) {
@@ -154,7 +256,7 @@ func postToAPI(work, slackID, apiKey string) (string, string) {
 	return resp.Status, string(respBody)
 }
 
-func handleNotification(respBody string, work string) {
+func handleNotification(respBody string, work string, endTime time.Time) {
 	var response map[string]interface{}
 	err := json.Unmarshal([]byte(respBody), &response)
 	if err != nil {
@@ -162,20 +264,56 @@ func handleNotification(respBody string, work string) {
 		return
 	}
 
-	if response["ok"].(bool) {
-		data := response["data"].(map[string]interface{})
-		message := fmt.Sprintf("Session started: %s", work)
-		notify("attd", "Arcade Time Tracker", message)
-	} else {
-		switch response["error"] {
-		case "Unauthorized":
-			notify("attd", "Arcade Time Tracker", "Unauthorized: Invalid API Key or Slack ID")
-		case "You already have an active session":
-			notify("attd", "Arcade Time Tracker", "You already have an active session")
-		default:
-			notify("attd", "Arcade Time Tracker", respBody)
+	ok, okPresent := response["ok"].(bool)
+	if !okPresent || !ok {
+		if errMsg, errPresent := response["error"].(string); errPresent {
+			switch errMsg {
+			case "Unauthorized":
+				notify("attd", "Arcade Time Tracker", "Unauthorized: Invalid API Key or Slack ID")
+			case "You already have an active session":
+				notify("attd", "Arcade Time Tracker", "You already have an active session")
+			default:
+				notify("attd", "Arcade Time Tracker", respBody)
+			}
 		}
+		return
 	}
+
+	message := fmt.Sprintf("Session started: %s", work)
+	notify("attd", "Arcade Time Tracker", message)
+
+	if !endTime.IsZero() {
+		go setupNotifications(endTime)
+	}
+}
+
+func setupNotifications(endTime time.Time) {
+	currentTime := time.Now()
+
+	for currentTime.Before(endTime) {
+		timeRemain := int(endTime.Sub(currentTime).Minutes())
+		if timeRemain <= 0 {
+			break
+		}
+
+		switch {
+		case timeRemain > 10 && timeRemain%20 == 0:
+			notify("attd", "Arcade Time Tracker", fmt.Sprintf("You have %d minutes left!", timeRemain))
+			time.Sleep(20 * time.Minute)
+		case timeRemain == 10:
+			notify("attd", "Arcade Time Tracker", "Just 10 minutes left!")
+			time.Sleep(10 * time.Minute)
+		case timeRemain == 5:
+			notify("attd", "Arcade Time Tracker", "The last 5 minutes!")
+			time.Sleep(5 * time.Minute)
+		default:
+			time.Sleep(1 * time.Minute)
+		}
+
+		currentTime = time.Now()
+	}
+
+	notify("attd", "Arcade Time Tracker", "You did it!")
 }
 
 func notify(appName, title, message string) {
