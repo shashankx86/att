@@ -108,19 +108,73 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	// Perform the API POST request
+	// Perform the API GET request to get the latest session
+	endTime, err := getSessionEndTime(payload.SlackID, payload.APIKey)
+	if err != nil {
+		fmt.Printf("Failed to get session end time: %v\n", err)
+		conn.Write([]byte(fmt.Sprintf("Failed to get session end time: %v\n", err)))
+		return
+	}
+
+	// Perform the API POST request to start a new session
 	respStatus, respBody := postToAPI(payload.Work, payload.SlackID, payload.APIKey)
 	response := fmt.Sprintf("Response Status: %s\nResponse Body: %s\n", respStatus, respBody)
 	fmt.Println("API request made, sending response back to sender")
-	
+
 	_, err = conn.Write([]byte(response))
 	if err != nil {
 		fmt.Printf("Failed to write to connection: %v\n", err)
 	}
 
 	// Send a push notification based on the response
-	handleNotification(respBody, payload.Work)
+	handleNotification(respBody, payload.Work, endTime)
 	time.Sleep(1 * time.Second) // Adding delay to ensure response is sent before the client closes the connection
+}
+
+func getSessionEndTime(slackID, apiKey string) (time.Time, error) {
+	url := fmt.Sprintf("https://hackhour.hackclub.com/api/session/%s", slackID)
+
+	// Create the HTTP request
+	req, _ := http.NewRequest("GET", url, nil)
+
+	// Set the Authorization header
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+
+	// Perform the HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to perform API request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	respBody, _ := io.ReadAll(resp.Body)
+
+	// Parse the response
+	var response struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			EndTime string `json:"endTime"`
+		} `json:"data"`
+	}
+	err = json.Unmarshal(respBody, &response)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Check if the response is OK
+	if !response.OK {
+		return time.Time{}, fmt.Errorf("API response not OK")
+	}
+
+	// Parse the endTime
+	endTime, err := time.Parse(time.RFC3339, response.Data.EndTime)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse endTime: %w", err)
+	}
+
+	return endTime, nil
 }
 
 func postToAPI(work, slackID, apiKey string) (string, string) {
@@ -154,7 +208,7 @@ func postToAPI(work, slackID, apiKey string) (string, string) {
 	return resp.Status, string(respBody)
 }
 
-func handleNotification(respBody string, work string) {
+func handleNotification(respBody string, work string, endTime time.Time) {
 	var response map[string]interface{}
 	err := json.Unmarshal([]byte(respBody), &response)
 	if err != nil {
@@ -162,53 +216,51 @@ func handleNotification(respBody string, work string) {
 		return
 	}
 
-	if response["ok"].(bool) {
-		data := response["data"].(map[string]interface{})
-		endTime, err := time.Parse(time.RFC3339, data["endTime"].(string))
-		if err != nil {
-			fmt.Printf("Failed to parse endTime: %v\n", err)
-			return
+	ok, okPresent := response["ok"].(bool)
+	if !okPresent || !ok {
+		if errMsg, errPresent := response["error"].(string); errPresent {
+			switch errMsg {
+			case "Unauthorized":
+				notify("attd", "Arcade Time Tracker", "Unauthorized: Invalid API Key or Slack ID")
+			case "You already have an active session":
+				notify("attd", "Arcade Time Tracker", "You already have an active session")
+			default:
+				notify("attd", "Arcade Time Tracker", respBody)
+			}
 		}
-
-		go setupNotifications(endTime)
-
-		message := fmt.Sprintf("Session started: %s", work)
-		notify("attd", "Arcade Time Tracker", message)
-	} else {
-		switch response["error"] {
-		case "Unauthorized":
-			notify("attd", "Arcade Time Tracker", "Unauthorized: Invalid API Key or Slack ID")
-		case "You already have an active session":
-			notify("attd", "Arcade Time Tracker", "You already have an active session")
-		default:
-			notify("attd", "Arcade Time Tracker", respBody)
-		}
+		return
 	}
+
+	message := fmt.Sprintf("Session started: %s", work)
+	notify("attd", "Arcade Time Tracker", message)
+
+	go setupNotifications(endTime)
 }
 
 func setupNotifications(endTime time.Time) {
 	currentTime := time.Now()
-	duration := endTime.Sub(currentTime)
 
-	if duration <= 0 {
-		return
-	}
+	for currentTime.Before(endTime) {
+		timeRemain := int(endTime.Sub(currentTime).Minutes())
+		if timeRemain <= 0 {
+			break
+		}
 
-	timeRemain := int(duration.Minutes())
+		switch {
+		case timeRemain > 10 && timeRemain%20 == 0:
+			notify("attd", "Arcade Time Tracker", fmt.Sprintf("You have %d minutes left!", timeRemain))
+			time.Sleep(20 * time.Minute)
+		case timeRemain == 10:
+			notify("attd", "Arcade Time Tracker", "Just 10 minutes left!")
+			time.Sleep(10 * time.Minute)
+		case timeRemain == 5:
+			notify("attd", "Arcade Time Tracker", "The last 5 minutes!")
+			time.Sleep(5 * time.Minute)
+		default:
+			time.Sleep(1 * time.Minute)
+		}
 
-	if timeRemain > 10 {
-		time.Sleep(20 * time.Minute)
-		notify("attd", "Arcade Time Tracker", fmt.Sprintf("You have %d minutes left!", timeRemain-20))
-	}
-
-	if timeRemain > 10 {
-		time.Sleep((time.Duration(timeRemain-30) * time.Minute))
-		notify("attd", "Arcade Time Tracker", "Just 10 minutes left!")
-	}
-
-	if timeRemain > 5 {
-		time.Sleep(5 * time.Minute)
-		notify("attd", "Arcade Time Tracker", "The last 5 minutes!")
+		currentTime = time.Now()
 	}
 }
 

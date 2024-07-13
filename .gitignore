@@ -21,3 +21,6 @@ att
 # Go workspace file
 go.work
 go.work.sum
+
+# Temp directories
+tmp_/
