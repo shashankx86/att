@@ -237,4 +237,8 @@ Fetches and prints the status of hack hour.
 att status
 ```
 
+#### gallery
+![image](https://github.com/user-attachments/assets/e45379cb-e8db-43e1-8de1-1bd0e2e16d6d)
+![image](https://github.com/user-attachments/assets/9d074d08-25f4-4fa7-9bfe-ea2399d46169)
+
 ---
